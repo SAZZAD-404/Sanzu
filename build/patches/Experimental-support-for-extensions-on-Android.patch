@@ -4960,7 +4960,7 @@ diff --git a/extensions/browser/extension_host.cc b/extensions/browser/extension
 +
 +#if BUILDFLAG(IS_ANDROID)
 +  if (extension_host_type() == mojom::ViewType::kExtensionPopup) {
-+    constexpr char kOsOverrideForCromite[] = "Linux; Android 10; Cromite";
++    constexpr char kOsOverrideForCromite[] = "Linux; Android 10; Sanzu";
 +    const std::string product = embedder_support::GetProductAndVersion();
 +    blink::UserAgentOverride ua_override;
 +    ua_override.ua_string_override =
