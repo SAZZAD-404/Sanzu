@@ -1,0 +1,262 @@
+name: Build Sanzu
+
+# First-build workflow for the Sanzu fork (SAZZAD-404/Sanzu).
+#
+# This is a fresh, simplified pipeline for GitHub-hosted runners. It does NOT
+# use uazo/cromite's build_cromite.yaml (left untouched in this repo), which
+# needs uazo's self-hosted runners, /storage volumes, /win_sdk, and his
+# signing secrets (KEYSTORE, KEYSTORE_PASSWORD, KEYSTORE_PASSPHRASE,
+# CROMITE_PREF_HASH_SEED_BIN).
+#
+# What this workflow does (Android arm64 only):
+#   1. Fetches Chromium at the version in build/RELEASE (tag-only fetch),
+#      then `gclient sync` (mirrors tools/images/chr-source/prepare-build.sh).
+#   2. Flattens the v8/devtools/skia/perfetto/boringssl subrepos and applies
+#      every patch in build/cromite_patches_list.txt with `git am`
+#      (mirrors tools/images/cromite-source/apply-cromite-patches.sh).
+#   3. Downloads the Android PGO profiles (mirrors tools/images/cromite-build/pre-start.sh).
+#   4. Runs `gn gen` with build/cromite.gn_args and builds chrome_public_apk.
+#   5. Signs the APK with a throwaway keystore generated inside CI and
+#      uploads it as a workflow artifact (installable for testing).
+#
+# Secrets needed: NONE for a test build. The keystore and the pref-hash seed
+# are generated fresh on every run. That also means every build is signed
+# with a DIFFERENT key: Android will refuse to update-install over an older
+# Sanzu build signed with another key (uninstall first, or keep one keystore).
+# For a future signed release build, add a stable keystore + a stable
+# CROMITE_PREF_HASH_SEED_BIN as repository secrets and wire them in here.
+#
+# How to trigger: GitHub repo -> Actions -> "Build Sanzu" -> Run workflow.
+# Pick debug=false for a release-style build, true for a debug build.
+# The APK appears under the run's Artifacts as `sanzu-android-arm64`.
+#
+# Honest limits (read before running):
+# - A full Chromium fetch + build needs a LOT of disk (source ~30 GB,
+#   build output tens of GB) and several hours. A free GitHub-hosted
+#   runner has limited disk and a 6-hour job cap (timeout-minutes: 360).
+#   This workflow frees disk first, but the first build may still fail
+#   on disk space or time. If it does, the realistic options are a larger
+#   GitHub runner (paid) or a self-hosted runner with plenty of disk/RAM.
+# - The keystore password is generated in CI and never printed; the
+#   `gn args --list` dump is deliberately skipped so it cannot leak
+#   into the workflow log.
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'debug build? [true/false]'
+        required: true
+        default: 'false'
+
+env:
+  WORKSPACE: ${{ github.workspace }}
+  TARGET_ISDEBUG: ${{ inputs.debug }}
+  DEPOT_TOOLS_UPDATE: '0'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Sanzu fork
+        uses: actions/checkout@v4
+        with:
+          path: sanzu
+
+      - name: Free disk space
+        shell: bash
+        run: |
+          df -h
+          # Chromium needs far more disk than a stock runner has free.
+          # Remove big preinstalled toolchains we do not use (Chromium
+          # fetches its own Android SDK/NDK via CIPD into the source tree).
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/az
+          sudo apt-get clean
+          df -h
+
+      - name: Install build prerequisites
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git python3 curl wget file lsof
+          # keytool (for the throwaway signing keystore)
+          if ! command -v keytool >/dev/null 2>&1; then
+            KEYTOOL_CANDIDATE=$(find /usr/lib/jvm -name keytool -type f 2>/dev/null | head -1)
+            if [ -n "$KEYTOOL_CANDIDATE" ]; then
+              echo "$(dirname "$KEYTOOL_CANDIDATE")" >> "$GITHUB_PATH"
+            else
+              sudo apt-get install -y default-jdk-headless
+            fi
+          fi
+          command -v keytool || find /usr/lib/jvm -name keytool -type f | head -1
+
+      - name: Clone depot_tools
+        shell: bash
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git depot_tools
+          echo "$WORKSPACE/depot_tools" >> "$GITHUB_PATH"
+
+      - name: Fetch Chromium source
+        shell: bash
+        run: |
+          VERSION=$(cat sanzu/build/RELEASE)
+          echo "Chromium version: $VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mkdir -p chromium/src
+          cd chromium/src
+          git init -q
+          git remote add origin https://chromium.googlesource.com/chromium/src.git
+          git config --unset-all remote.origin.fetch || true
+          git config --add remote.origin.fetch "+refs/tags/${VERSION}:refs/tags/${VERSION}"
+          git fetch --depth 2 origin "+refs/tags/${VERSION}:chromium_${VERSION}"
+          git checkout -q "$VERSION"
+          VERSION_SHA=$(git show-ref -s "$VERSION" | head -n1)
+          cd ..
+          # .gclient: Android only (no win/linux targets in this workflow).
+          cat > .gclient <<EOF
+          solutions = [
+            {
+              "name"        : 'src',
+              "url"         : 'https://chromium.googlesource.com/chromium/src.git@$VERSION_SHA',
+              "deps_file"   : 'DEPS',
+              "managed"     : False,
+              "custom_deps" : {
+                "src/third_party/apache-windows-arm64": None,
+                "src/third_party/gperf": None,
+                "src/third_party/lighttpd": None,
+                "src/third_party/lzma_sdk/bin/host_platform": None,
+                "src/third_party/perl": None,
+                "src/third_party/screen-ai/windows_amd64": None,
+                "src/third_party/screen-ai/windows_386": None,
+                "src/testing/libfuzzer/fuzzers/wasm_corpus": None,
+              },
+              "custom_hooks" : [
+                { 'name': 'ciopfs_linux', 'pattern': '.', 'action': ['echo', 'ciopfs_linux hook override'] },
+                { 'name': 'win_toolchain', 'pattern': '.', 'action': ['echo', 'win_toolchain hook override'] },
+                { 'name': 'rc_win', 'pattern': '.', 'action': ['echo', 'rc_win hook override'] },
+                { 'name': 'rc_linux', 'pattern': '.', 'action': ['echo', 'rc_linux hook override'] },
+                { 'name': 'apache_win32', 'pattern': '.', 'action': ['echo', 'apache_win32 hook override'] },
+              ],
+              "custom_vars": {
+                "checkout_android_prebuilts_build_tools": True,
+                "checkout_telemetry_dependencies": False,
+                "codesearch": 'Debug',
+              },
+            },
+          ]
+          target_os=['android']
+          EOF
+          cat .gclient
+          cd src
+          git config user.email "sanzu-ci@local"
+          git config user.name "Sanzu CI"
+
+      - name: Sync dependencies (gclient)
+        shell: bash
+        run: |
+          cd chromium
+          gclient sync -D --no-history --nohooks
+          cd src
+          gclient runhooks
+          tools/clang/scripts/update.py --package=objdump
+          rm -rf third_party/angle/third_party/VK-GL-CTS/
+          df -h
+
+      - name: Flatten subrepos and apply Sanzu patches
+        shell: bash
+        run: |
+          cd chromium/src
+          # Subrepos must be flattened so `git am` can patch across the tree
+          # (same steps as tools/images/cromite-source/apply-cromite-patches.sh).
+          for sub in v8 third_party/devtools-frontend third_party/skia third_party/perfetto third_party/boringssl/src; do
+            if [ -d "$sub/.git" ] || [ -f "$sub/.git" ]; then
+              rm -rf "$sub/.git"
+              cp -r "$sub" "$sub-bis"
+              git rm -rf "$sub" || true
+              git submodule deinit -f "$sub" || true
+              rm -rf "$sub"
+              mv "$sub-bis" "$sub"
+              git add -f "$sub" >/dev/null
+            fi
+          done
+          git commit -qm ":NOEXPORT: flatten subrepos" || true
+          git prune
+          # Apply every patch in list order.
+          for file in $(cat ../../sanzu/build/cromite_patches_list.txt); do
+            case "$file" in
+              *.patch)
+                echo " -> Apply $file"
+                REPL="0,/^---/s//FILE:$(basename "$file")\n---/"
+                sed "$REPL" "../../sanzu/build/patches/$file" | git am || {
+                  echo "ERROR applying $file"
+                  exit 1
+                }
+                ;;
+              *) echo "skip: $file" ;;
+            esac
+          done
+
+      - name: Download Android PGO profiles
+        shell: bash
+        run: |
+          cd chromium/src
+          python3 tools/update_pgo_profiles.py --target=android-desktop-arm64 update --gs-url-base=chromium-optimization-profiles/pgo_profiles
+          python3 tools/download_optimization_profile.py --newest_state=chrome/android/profiles/newest.txt \
+            --local_state=chrome/android/profiles/local.txt \
+            --output_name=chrome/android/profiles/afdo.prof \
+            --gs_url_base=chromeos-prebuilt/afdo-job/llvm
+
+      - name: Generate throwaway signing keystore and pref seed
+        shell: bash
+        run: |
+          STOREPASS=$(openssl rand -hex 16)
+          echo "SANZU_KEYSTORE_PASSWORD=$STOREPASS" >> "$GITHUB_ENV"
+          # A fresh random pref-hash seed per build (empty also works; a
+          # stable seed only matters for signed releases, see header).
+          echo "CROMITE_PREF_HASH_SEED_BIN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          keytool -genkeypair -keystore "$WORKSPACE/sanzu.keystore" \
+            -alias sanzu -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$STOREPASS" -keypass "$STOREPASS" \
+            -dname "CN=Sanzu, O=Sanzu" -noprompt
+          ls -la "$WORKSPACE/sanzu.keystore"
+
+      - name: Configure build (gn gen, Android arm64)
+        shell: bash
+        env:
+          CROMITE_PREF_HASH_SEED_BIN: ${{ env.CROMITE_PREF_HASH_SEED_BIN }}
+          SANZU_KEYSTORE_PASSWORD: ${{ env.SANZU_KEYSTORE_PASSWORD }}
+        run: |
+          cd chromium/src
+          # NOTE: USE_KEYSTORE is deliberately NOT set: build/cromite.gn_args
+          # only assigns the keystore args inside `if (getenv("USE_KEYSTORE") != "")`.
+          # With it unset, the three args below are the only assignment, so
+          # there is no duplicate-assignment error. Do NOT print `gn args
+          # --list`: it would leak the keystore password into the log.
+          gn gen --args="target_os = \"android\" $(cat $WORKSPACE/sanzu/build/cromite.gn_args) target_cpu = \"arm64\" android_keystore_path = \"$WORKSPACE/sanzu.keystore\" android_keystore_name = \"sanzu\" android_keystore_password = \"$SANZU_KEYSTORE_PASSWORD\"" out/arm64
+
+      - name: Build Sanzu APK (arm64)
+        shell: bash
+        run: |
+          cd chromium/src
+          PATH="$WORKSPACE/chromium/src/third_party/llvm-build/Release+Asserts/bin:$WORKSPACE/depot_tools:$PATH"
+          python3 "$WORKSPACE/depot_tools/siso.py" ninja -C out/arm64 chrome_public_apk --offline
+          cp ../../sanzu/build/RELEASE out/arm64
+          ls -lh out/arm64/apks/
+
+      - name: Upload Sanzu APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanzu-android-arm64
+          path: |
+            chromium/src/out/arm64/apks/ChromePublic.apk
+            chromium/src/out/arm64/RELEASE
+          if-no-files-found: error
