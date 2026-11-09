@@ -1,6 +1,6 @@
 From: uazo <uazo@users.noreply.github.com>
 Date: Thu, 29 Sep 2022 11:27:35 +0000
-Subject: Eyeo Adblock for Cromite
+Subject: Eyeo Adblock for Sanzu
 
 Change the normal behaviour of Eyeo Chromium SDK to
 suit Cromite logic.
@@ -12519,7 +12519,7 @@ diff --git a/components/adblock/core/subscription/subscription_config.cc b/compo
 +       SubscriptionFirstRunBehavior::SubscribeAtFirstRun,
 +       SubscriptionPrivilegedFilterStatus::AllowedAndChecked},
 +      {GURL("https://raw.githubusercontent.com/uazo/cromite/master/tools/filters/experimental-cromite-filters.txt"),
-+       "Cromite experimental filters",
++       "Sanzu experimental filters",
         {},
         SubscriptionUiVisibility::Visible,
 -       SubscriptionFirstRunBehavior::Ignore,

@@ -558,7 +558,7 @@ diff --git a/chrome/android/java/res/values/values.xml b/chrome/android/java/res
      xmlns:tools="http://schemas.android.com/tools"
      tools:ignore="MissingTranslation">
  
-+    <string name="cromite_flags_title">Open Cromite flags list</string>
++    <string name="cromite_flags_title">Open Sanzu flags list</string>
 +    <string name="cromite_flags_url">chrome://flags/cromite</string>
 +
      <!-- Full Screen Constants -->
@@ -1086,7 +1086,7 @@ new file mode 100644
 +        Relaunch
 +    </message>
 +    <message name="IDS_UI_RELAUNCH_NOTICE" desc="Summary for relaunch message">
-+        Your changes will take effect the next time you relaunch Cromite.
++        Your changes will take effect the next time you relaunch Sanzu.
 +    </message>
 +</grit-part>
 diff --git a/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/placeholder.txt b/chrome/browser/ui/android/strings/cromite_android_chrome_strings_grd/placeholder.txt
@@ -1580,7 +1580,7 @@ diff --git a/components/webui/flags/resources/app.ts b/components/webui/flags/re
      // <if expr="not is_ios">
      loadTimeData.getString('unavailable'),
      // </if>
-+    "Cromite",
++    "Sanzu",
    ];
    protected accessor selectedTabIndex_: number = 0;
  
@@ -1604,7 +1604,7 @@ diff --git a/components/webui/flags/resources/app.ts b/components/webui/flags/re
 +    if (location.pathname == '/cromite') {
 +      this.onlyCromiteFlags = true;
 +      this.getRequiredElement("#appcontainer").classList.add('cromite');
-+      document.title = "Cromite Flags List";
++      document.title = "Sanzu Flags List";
 +    }
      // <if expr="not is_ios">
      const pathname = new URL(window.location.href).pathname;
@@ -1727,7 +1727,7 @@ diff --git a/components/webui/flags/resources/experiment.ts b/components/webui/f
    protected getExperimentTitle_(): string {
 +    const suffix =
 +      this.feature_.is_cromite && this.feature_.is_new
-+        ? " (Cromite flag)" : "";
++        ? " (Sanzu flag)" : "";
      if (this.showEnableDisableSelect_()) {
 -      return this.isDefault_ ? '' :
 -                               loadTimeData.getString('experiment-enabled');

@@ -587,7 +587,7 @@ new file mode 100644
 +
 +    {"enable-show-ntp-at-startup",
 +     "Show a NewTabPage at startup",
-+     "Enable showing a NewTabPage at startup after leaving Cromite for a while.", kOsAndroid,
++     "Enable showing a NewTabPage at startup after leaving Sanzu for a while.", kOsAndroid,
 +     FEATURE_VALUE_TYPE(chrome::android::kShowNtpAtStartupAndroid)},
 +
 +#endif

@@ -1289,7 +1289,7 @@ new file mode 100644
 +    </message>
 +
 +    <message name="IDS_BROMITE_FRE_FOOTER_PRIVACY_POLICY" desc="Message explaining the privacy policy of the file hosting service provider for adblock updates and Bromite app automatic updates">
-+        <ph name="BEGIN_PRIVACY_LINK1">&lt;PRIVACY_LINK1&gt;</ph>Automatic ad block filters updates<ph name="END_PRIVACY_LINK1">&lt;/PRIVACY_LINK1&gt;</ph> are subject to the <ph name="BEGIN_PRIVACY_LINK2">&lt;PRIVACY_LINK2&gt;</ph>Cromite Privacy statement<ph name="END_PRIVACY_LINK2">&lt;/PRIVACY_LINK2&gt;</ph>.
++        <ph name="BEGIN_PRIVACY_LINK1">&lt;PRIVACY_LINK1&gt;</ph>Automatic ad block filters updates<ph name="END_PRIVACY_LINK1">&lt;/PRIVACY_LINK1&gt;</ph> are subject to the <ph name="BEGIN_PRIVACY_LINK2">&lt;PRIVACY_LINK2&gt;</ph>Sanzu Privacy statement<ph name="END_PRIVACY_LINK2">&lt;/PRIVACY_LINK2&gt;</ph>.
 +The following checkbox controls instead <ph name="BEGIN_PRIVACY_LINK3">&lt;PRIVACY_LINK3&gt;</ph>automatic app updates<ph name="END_PRIVACY_LINK3">&lt;/PRIVACY_LINK3&gt;</ph> which are subject to the <ph name="BEGIN_PRIVACY_LINK4">&lt;PRIVACY_LINK4&gt;</ph>GitHub Privacy statement<ph name="END_PRIVACY_LINK4">&lt;/PRIVACY_LINK4&gt;</ph>.
 +    </message>
 +

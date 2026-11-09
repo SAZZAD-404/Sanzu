@@ -1508,7 +1508,7 @@ diff --git a/components/browser_ui/site_settings/android/java/res/xml/site_setti
 +        android:selectable="false"
 +        android:layout="@layout/horizontal_divider"/>
 +
-+    <PreferenceCategory android:title="Cromite content settings"/>
++    <PreferenceCategory android:title="Sanzu content settings"/>
 +
  </PreferenceScreen>
 diff --git a/components/browser_ui/site_settings/android/java/src/org/chromium/components/browser_ui/site_settings/AllSiteSettings.java b/components/browser_ui/site_settings/android/java/src/org/chromium/components/browser_ui/site_settings/AllSiteSettings.java
